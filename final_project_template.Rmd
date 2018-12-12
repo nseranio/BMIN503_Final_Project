@@ -1,6 +1,6 @@
 ---
-title: "BMIN503/EPID600 Project Template"
-author: "Your Name"
+title: "Black Zen: A descriptive exploration of meditation in African-Americans"
+author: "Nicolas Seranio"
 output: 
   html_document:
     toc: false 
@@ -12,21 +12,218 @@ output:
 options(width = 400)
 ```  
 ***
-Use this template to complete your project throughout the course. Your Final Project presentation in class will be based on the contents of this document. Replace the title/name and text below with your own, but leave the headers.
-
 ### Overview
-In this section, give a brief a description of your project and its goal, what data you are using to complete it, and what three faculty/staff in different fields you have spoken to about your project with a brief summary of what you learned from each person. Include a link to your final project GitHub repository.
+The goal of my project is the describe and characterize the health behaviors of African Americans who practice meditation. I am utilizing the 2017 National Health Interview Survey (NHIS) data.
 
+Faculty/Staff:
+Gary Kao (Radiation Oncology): Helped me in defining my problem and the health implications I should look into.
+Sumedha Chhatre (Psychology): Taught me about the wealth of available databases and how to perform my initial analysis.
+Megan Blanchard (Sociology): Taught me about social considerations when comparing behaviors in groups. Helped with data cleaning.
+
+
+https://github.com/nseranio/BMIN503_Final_Project
 
 ### Introduction 
-In the first paragraph, describe the problem addressed, its significance, and some background to motivate the problem.
+Meditation has been shown to be associated with alterations in brain structure, better mental health, improved attention, greater emotional self-regulation, slower cellular aging, better academic performance, and other outcomes. However, there are very few studies characterizing the prevalence and patterns of use of meditation in the general US adult population. I wanted to explore the role that meditation plays in African-Americans in dealing with their uniqe health and mental health burdens.
 
-In the second paragraph, explain why your problem is interdisciplinary, what fields can contribute to its understanding, and incorporate background related to what you learned from meeting with faculty/staff.
-
+My problem is interdisciplinary because it relies on a blend of medicine, sociology, and psychology to grasp the full picture. From working with the faculty and staff they informed me on things that I might need to take into consider in my analysis such as the role of privilege in the form of education and wealth might have one one's health.
 
 ### Methods
-In the first paragraph, describe the data used and general methodological approach. Subsequently, incorporate full R code necessary to retrieve and clean data, and perform analysis. Be sure to include a description of code so that others (including your future self) can understand what you are doing and why. 
+The data I used was the "Sample Adult Component" and the "Family Component" of the 2017 NHIS. The data was downloaded from https://www.cdc.gov/nchs/nhis/nhis_2017_data_release.htm. I only kept the respondents who were identified as African-American and then merged the two datasets into a single one. I then divided them into "Meditators" and "Non-meditators" before performing my analyses.
+
+```{r}
+#Load the relevant R packages
+library(dplyr)
+library(data.table)
+
+#Load in the "Sample Adult" NHIS data.
+nhisadult <- read.csv(file = "/Users/Nseranio/Documents/MTR/BMIN\ 503/BMIN503_Final_Project/samadult.csv", header = TRUE, sep = ",")
+
+#Load in the "Family" NHIS data.
+nhisfam <- read.csv(file = "/Users/Nseranio/Documents/MTR/BMIN\ 503/BMIN503_Final_Project/familyxx.csv", header = TRUE, sep = ",")
+
+#Delete variables not relevant to project from "Sample Adult" data.
+setDT(nhisadult)[, c(4,5,8:10,12,14:16,18:27,29:35,37:43,46,48:50,53:85,87:118,125,127:326,328:361,363:397,399:432,434:484,486,492:496,502,504:510,518,531:534,563:568,571,583:586,595:619,623:629,638,639,644:648,671,672) := NULL]
+
+#Delete variables not relevant to project from "Sample Adult" data.
+setDT(nhisfam)[, c(1:5,7:19,21:71,78:127) := NULL]
+
+#Create data with only African-American respondents
+nhisafam <- nhisadult[RACERPI2 == 2]
+
+#Merge nhisafam with nhisfam and remove any duplicated rows.
+nhismerged <- merge(nhisafam, nhisfam, by = "HHX")
+nhismerged <- nhismerged[!duplicated(nhismerged$HHX),]
+
+#Convert NAs to 0s in yoga columns
+nhismerged$YTQ_MDY1[is.na(nhismerged$YTQ_MDY1)] <- 0
+nhismerged$YTQ_MDT1[is.na(nhismerged$YTQ_MDT1)] <- 0
+nhismerged$YTQ_MDQ1[is.na(nhismerged$YTQ_MDQ1)] <- 0
+
+#Create a column of "Meditators" and "Non-meditators"
+nhismerged <- nhismerged %>%
+  mutate(meditate = ifelse(MBO_MAN1 == 1 | 
+                           MBO_MND1 == 1 | 
+                           MBO_SPR1 == 1 |
+                           YTQ_MDY1 == 1 | 
+                           YTQ_MDT1 == 1 | 
+                           YTQ_MDQ1 == 1, 1, 0)) 
+
+table(nhismerged$meditate, useNA = "always")
+
+#Change labels for sex variable
+nhismerged$SEX <- factor(nhismerged$SEX, labels=c("Male","Female"))
+
+#Change labels for the meditation variable
+nhismerged$meditate <- factor(nhismerged$meditate, labels=c("Non-meditator","Meditator"))
+
+#Change labels for region variable
+nhismerged$REGION <- factor(nhismerged$REGION, labels=c("Northeast","Midwest","South","West"))
+
+#Change levels for Depression variable
+nhismerged$ASISAD <- factor(nhismerged$ASISAD)
+levels(nhismerged$ASISAD) <- list(All="1",Most="2",Some="3",Little="4",None="5")
+
+#Change levels for the naturopathy variable
+nhismerged$NAT_USM1 <- factor(nhismerged$NAT_USM1)
+levels(nhismerged$NAT_USM1) <- list(Yes="1",No="2")
+
+#Change levels for "Feelings interfered w/ life, past 30 days" variable
+nhismerged$ASIMUCH <- factor(nhismerged$ASIMUCH)
+levels(nhismerged$ASIMUCH) <- list(Alot="1",Some="2",Alittle="3",Notatall="4")
+
+#Change levels for frequency of vigorous activity variable
+nhismerged$VIGFREQW <- factor(nhismerged$VIGFREQW)
+levels(nhismerged$VIGFREQW) <- list(Lessthanonceperweek="1",OnetoTwoEight="2", Never="3")
+
+#Change levels for family education variable
+nhismerged$FM_EDUC1 <- factor(nhismerged$FM_EDUC1)
+levels(nhismerged$FM_EDUC1) <- list(UnderEighth="1",NinetoTwelve="2",GED="3",HSgrad="4", SomeCollege="5",AAvocational="6",AAacademic="7",Bachelors="8",Professional="9")
+
+#Change levels for income group variable
+nhismerged$INCGRP5 <- factor(nhismerged$INCGRP5)
+levels(nhismerged$INCGRP5) <- list(ZeroTo35k="1",ThirtyFiveto75k="2",SeventyFiveto100k="3",Over100k="4")
+
+#Change levels for SNAP/foodstamps variable
+nhismerged$FSNAP <- factor(nhismerged$FSNAP)
+levels(nhismerged$FSNAP) <- list(Yes="1",No="2")
+
+#Change levels for the smoking status variable
+nhismerged$SMKSTAT2 <- factor(nhismerged$SMKSTAT2)
+levels(nhismerged$SMKSTAT2) <- list(CurrEveryday="1",CurrSomeday="2", Former="3", Never="4")
+
+#Creat a dataframe with the different forms of meditation.
+MeditationTypes <- c("Mantra","Mindfulness","Spiritual","Yoga","Tai Chi","Qi Gong")
+Frequencies <- c(61,81,358,159,18,10)
+meditatorgraph <- data.frame(MeditationTypes,Frequencies)
+
+```
 
 
 ### Results
-Describe your results and include relevant tables, plots, and code/comments used to obtain them. End with a brief conclusion of your findings related to the question you set out to address. You can include references if you'd like, but this is not required.
+First I wanted to get a better understand of who the people were that identified as "Meditators" and how they compared to African-Americans who didn't meditate. From the data below it became clear that "Meditators" tend to be a relatively privilged group with higher income, higher income, and less utilization of public services like food stamps.
+
+```{r}
+#Load the relevant packages
+library(ggplot2)
+library(foreign)
+library(ggplot2)
+library(MASS)
+library(Hmisc)
+library(reshape2)
+
+#Generate a graph that shows the breakdown of the type of Meditation utilized.
+ggplot(data=meditatorgraph, aes(x=reorder(MeditationTypes,-Frequencies), y=Frequencies)) +
+  geom_bar(stat="identity", fill="navy")
+
+#Generate a graph of the ages of the two groups.
+ggplot(data=nhismerged, aes(x=factor(meditate), y=AGE_P)) +
+    geom_boxplot()
+
+#Generate a graph of the sex of the two groups.
+ggplot(data=nhismerged, aes(x=SEX, fill=meditate)) +
+    geom_bar(position="dodge")
+
+#Generate a graph of the region breakdown of the two groups.
+ggplot(data=nhismerged, aes(x=REGION, fill=meditate)) +
+    geom_bar(position="dodge")
+
+#Generate a graph of the family education of the two groups. Then perform an ordered logistic regression.
+ggplot(data=subset(nhismerged, !is.na(FM_EDUC1)), aes(x=FM_EDUC1, fill=meditate)) +
+    geom_bar(position="fill") + theme(axis.text.x = element_text(angle = 75, hjust = 1))
+fmeord <- polr(FM_EDUC1 ~ meditate, data = nhismerged, Hess=TRUE)
+summary(fmeord)
+ctable3 <- coef(summary(fmeord))
+fmeord <- pnorm(abs(ctable3[, "t value"]), lower.tail = FALSE) * 2
+ctable3 <- cbind(ctable3, "p value" = fmeord)
+ctable3
+
+#Generate a graph of the income of the two groups. Then perform an ordered logistic regression.
+ggplot(data=subset(nhismerged,!is.na(INCGRP5)), aes(x=INCGRP5, fill=meditate)) +
+    geom_bar(position="fill")
+incord <- polr(INCGRP5 ~ meditate, data = nhismerged, Hess=TRUE)
+summary(incord)
+ctable2 <- coef(summary(incord))
+pincord <- pnorm(abs(ctable2[, "t value"]), lower.tail = FALSE) * 2
+ctable2 <- cbind(ctable2, "p value" = pincord)
+ctable2
+
+#Generate a graph of the snap/foodstamp use of the two groups. Then perform a chi-squared test.
+ggplot(data=subset(nhismerged, !is.na(FSNAP)), aes(x=FSNAP, fill=meditate)) +
+    geom_bar(position="dodge")
+chisq.test(nhismerged$FSNAP,nhismerged$meditate)
+
+```
+
+I then wanted to explore how their health differs. Here I look at how smoking status, exercise activity, and depression affects the groups differently. I also wanted to look at health behavior and saw how they utilize naturopathy differently.
+
+```{r}
+#Generate a graph of the smoking use of the two groups. Then perform an ordered logistic regression.
+ggplot(data=subset(nhismerged,!is.na(SMKSTAT2)), aes(x=SMKSTAT2, fill=meditate)) +
+    geom_bar(position="fill")
+smkord <- polr(SMKSTAT2 ~ meditate, data = nhismerged, Hess=TRUE)
+summary(smkord)
+ctable5 <- coef(summary(smkord))
+psmkord <- pnorm(abs(ctable5[, "t value"]), lower.tail = FALSE) * 2
+ctable5 <- cbind(ctable5, "p value" = psmkord)
+ctable5
+
+#Generate a graph of the smoking use of the two groups. Then perform an ordered logistic regression.
+ggplot(data=subset(nhismerged,!is.na(VIGFREQW)), aes(x=VIGFREQW, fill=meditate)) +
+    geom_bar(position="dodge")
+vigord <- polr(VIGFREQW ~ meditate, data = nhismerged, Hess=TRUE)
+summary(vigord)
+ctable6 <- coef(summary(vigord))
+pvigord <- pnorm(abs(ctable6[, "t value"]), lower.tail = FALSE) * 2
+ctable6 <- cbind(ctable6, "p value" = pvigord)
+ctable6
+
+#Generate a graph of the smoking use of the two groups. Then perform an ordered logistic regression.
+ggplot(data=nhismerged, aes(x=ASISAD, fill=meditate)) +
+    geom_bar(position="dodge")
+sadord <- polr(ASISAD ~ meditate, data = nhismerged, Hess=TRUE)
+summary(sadord)
+ctable <- coef(summary(sadord))
+psadord <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = psadord)
+ctable
+
+#Generate a graph of the smoking use of the two groups. Then perform an ordered logistic regression.
+ggplot(data=subset(nhismerged,!is.na(ASIMUCH)), aes(x=ASIMUCH, fill=meditate)) +
+    geom_bar(position="fill")
+globalord <- polr(ASIMUCH ~ meditate, data = nhismerged, Hess=TRUE)
+summary(globalord)
+ctable4 <- coef(summary(globalord))
+globalord <- pnorm(abs(ctable4[, "t value"]), lower.tail = FALSE) * 2
+ctable4 <- cbind(ctable4, "p value" = globalord)
+ctable4
+
+#Generate a graph of the smoking use of the two groups. Then perform an ordered logistic regression.
+ggplot(data=subset(nhismerged, !is.na(NAT_USM1)), aes(x=NAT_USM1, fill=meditate)) +
+    geom_bar(position="fill")
+chisq.test(nhismerged$NAT_USM1,nhismerged$meditate)
+```
+
+In conclusion it doesn't seem like in most aspects there is much difference between the groups. There does seem to be difference in utilization of naturopathy. It may be that they aren't all that much healthier but may navigate the healthcare system differently.
+
+In the future I would have loved to explore the specific meditation styles (mantra, spirituality, and mindfulness) to see if specific styles may have had an affect. I also would have loved to explore the idea of healthcare utilization further.
